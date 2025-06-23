@@ -1,0 +1,112 @@
+class Node:
+    def __init__(self, val, left=None, right=None):
+        self.val = val    # The value of the node (e.g., sum of its range)
+        self.left = left  # Pointer to the left child Node
+        self.right = right # Pointer to the right child Node
+
+class PersistentSegmentTree:
+    def __init__(self, initial_array):
+        self.n = len(initial_array)
+        # `roots` is a list where roots[i] is the root node of version i.
+        self.roots = []
+        # Build the initial tree (version 0) and store its root.
+        initial_root = self._build(initial_array, 0, self.n - 1)
+        self.roots.append(initial_root)
+
+    def _build(self, arr, low, high):
+        if low == high:
+            return Node(arr[low])
+
+        mid = (low + high) // 2
+        left_child = self._build(arr, low, mid)
+        right_child = self._build(arr, mid + 1, high)
+
+        # A parent node's value is the sum of its children's values.
+        return Node(left_child.val + right_child.val, left_child, right_child)
+
+    def _update(self, prev_node, low, high, index, value):
+        # Base case: We've reached the leaf node.
+        if low == high:
+            return Node(value)
+
+        mid = (low + high) // 2
+        new_left = prev_node.left
+        new_right = prev_node.right
+
+        # The core of path copying:
+        # We create a new path, but link to existing nodes for subtrees that are not affected.
+        if index <= mid:
+            # If the update is in the left subtree, recursively update the left child.
+            # The right child remains the same as the previous version.
+            new_left = self._update(prev_node.left, low, mid, index, value)
+        else:
+            # If the update is in the right subtree, recursively update the right child.
+            # The left child remains the same as the previous version.
+            new_right = self._update(prev_node.right, mid + 1, high, index, value)
+
+        # Create the new parent node with the updated children and new sum.
+        return Node(new_left.val + new_right.val, new_left, new_right)
+
+    def update(self, version, index, value):
+        if not (0 <= version < len(self.roots)):
+            raise ValueError("Invalid version number")
+        if not (0 <= index < self.n):
+            raise ValueError("Index out of bounds")
+
+        old_root = self.roots[version]
+        new_root = self._update(old_root, 0, self.n - 1, index, value)
+        self.roots.append(new_root)
+        return len(self.roots) - 1 # Return the new version number
+
+    def _query(self, node, low, high, query_low, query_high):
+        # If the node's range is completely outside the query range, return 0.
+        if low > query_high or high < query_low:
+            return 0
+        # If the node's range is completely inside the query range, return its value.
+        if query_low <= low and high <= query_high:
+            return node.val
+
+        mid = (low + high) // 2
+        left_sum = self._query(node.left, low, mid, query_low, query_high)
+        right_sum = self._query(node.right, mid + 1, high, query_low, query_high)
+        return left_sum + right_sum
+
+    def query(self, version, query_low, query_high):
+
+        if not (0 <= version < len(self.roots)):
+            raise ValueError("Invalid version number")
+        if not (0 <= query_low <= query_high < self.n):
+            raise ValueError("Query range out of bounds")
+
+        root_to_query = self.roots[version]
+        return self._query(root_to_query, 0, self.n - 1, query_low, query_high)
+
+initial_data = [1, 2, 3, 4, 5]
+pst = PersistentSegmentTree(initial_data)
+
+print(f"Initial Array (Version 0): {initial_data}")
+print("-" * 30)
+sum_v0 = pst.query(version=0, query_low=1, query_high=3)
+print(f"Query on Version 0 (range [1, 3]): {sum_v0}")
+assert sum_v0 == 9
+print("-" * 30)
+new_version_1 = pst.update(version=0, index=2, value=10)
+print(f"Update created Version {new_version_1}. (Array index 2 changed to 10)")
+print("-" * 30)
+
+sum_v0_after_update = pst.query(version=0, query_low=1, query_high=3)
+print(f"Query on Version 0 again (range [1, 3]): {sum_v0_after_update}")
+assert sum_v0_after_update == 9
+sum_v1 = pst.query(version=1, query_low=1, query_high=3)
+print(f"Query on Version 1 (range [1, 3]): {sum_v1}")
+assert sum_v1 == 16
+print("-" * 30)
+new_version_2 = pst.update(version=1, index=4, value=0)
+print(f"Update created Version {new_version_2}. (Array index 4 changed to 0)")
+print("-" * 30)
+full_sum_v1 = pst.query(version=1, query_low=0, query_high=4)
+print(f"Query on Version 1 again (full range): {full_sum_v1}")
+assert full_sum_v1 == 22
+full_sum_v2 = pst.query(version=2, query_low=0, query_high=4)
+print(f"Query on Version 2 (full range): {full_sum_v2}")
+assert full_sum_v2 == 17
